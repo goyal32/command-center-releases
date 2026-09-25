@@ -763,6 +763,11 @@ of record; oversight roles may reassign). Priorities are severity classes; the n
 report counts, and are always labelled "proposed". *Judged weeks* for month M = the student's required weeks whose
 Saturday falls in M and that are complete as of the scan (printed by date). Each proposal lists the facts it used.
 
+- `[Rev B note]` *Parity with the shipped MPR module:* 0.2.46's `MPR.evaluate` grades the summary in four levels
+  (On Target / Adequate but Needs Improvement / Unsatisfactory / No Progress) using average progress, the largest
+  pacing gap, the count of courses below passing and the count of expired courses, with thresholds from the MPR
+  settings. MP-P1 must be restated with those four levels and inputs before shadow comparison
+  (`COMMAND-CENTER-BRAIN-V1-MIGRATION-MAP.md` §2); the three-level text below is superseded by that restatement.
 - **MP-P1 Progress summary** over active courses (expired courses included with a flag when
   `mpr.include_expired_courses`): *On Target* if every course is `on_pace`; *No Progress* if the average progress
   is below `mpr.no_progress_avg` and every course is below `on_pace`, or (when a prior-month snapshot exists) no
