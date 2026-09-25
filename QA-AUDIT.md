@@ -454,10 +454,10 @@ All fixes are marked `// QA-fix` in the patched files. Verified by re-running th
 | m1–m8 | Name/greeting/subject/wording fixes, `setMode('login')`, `replace` callback | code |
 | — | Leadership reads `Enrollment Status` | code |
 
-**Files:** `qa/fixes/Command_center_universal_v120.html` (+ `.patch`, 29 hunks, CRLF line endings preserved),
-`qa/fixes/main.js`, `qa/fixes/src/laserfiche.js`, `qa/fixes/renderer/login.html` (+ `desktop-main-process.patch`).
-Apply with `patch -p1 < qa/fixes/Command_center_universal_v120.html.patch` (run in the folder that holds `app-html/`) and `patch -p1 < qa/fixes/desktop-main-process.patch` (in the desktop project root), or copy the files; build 0.2.47 and re-run
-`qa/playwright/` against it.
+**Files:** `qa/fixes/Command_center_universal_v120.html.patch` (29 hunks, CRLF line endings preserved) and
+`qa/fixes/desktop-main-process.patch` (`main.js`, `src/laserfiche.js`, `renderer/login.html`). Apply with
+`patch -p1` as described in `qa/fixes/README.md`, build 0.2.47, and run `qa/playwright/smoke.js` against it.
+Final smoke test on a fresh profile against the patched build: 15 of 15 assertions passed, zero page errors.
 
 **Not changed on purpose** (documented above, need a decision or a larger change): M1–M3, M10, M11, M14–M17,
 UX 2–12, m9–m23.

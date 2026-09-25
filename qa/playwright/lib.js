@@ -1,11 +1,13 @@
 const { _electron } = require('playwright');
 const path = require('path');
 const fs = require('fs');
-const SRC = path.resolve(__dirname, '..', 'src');
-const DATA = path.resolve(__dirname, '..', 'data');
+// CC_SRC = the desktop app checkout (package.json, main.js, src/, renderer/); CC_DATA = the synthetic CSVs.
+const SRC = process.env.CC_SRC ? path.resolve(process.env.CC_SRC) : path.resolve(__dirname, '..', 'src');
+const DATA = process.env.CC_DATA ? path.resolve(process.env.CC_DATA) : (fs.existsSync(path.resolve(__dirname, '..', 'sample-data')) ? path.resolve(__dirname, '..', 'sample-data') : path.resolve(__dirname, '..', 'data'));
 const SHOTS = path.resolve(__dirname, 'shots');
 fs.mkdirSync(SHOTS, { recursive: true });
-const ADMIN = { username: 'admin', password: 'Passw0rd123!', displayName: 'Helen Garcia' };
+// Test-only account created on a throw-away profile (synthetic data). Override with QA_ADMIN_USER / QA_ADMIN_PASSWORD.
+const ADMIN = { username: process.env.QA_ADMIN_USER || 'qa-admin', password: process.env.QA_ADMIN_PASSWORD || 'qa-only-' + require('os').hostname(), displayName: 'QA Admin' };
 
 async function launch(opts = {}) {
   const app = await _electron.launch({

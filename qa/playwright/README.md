@@ -29,10 +29,18 @@ The HTML app loads PapaParse / Chart.js / xlsx-js-style / JSZip / pdf.js from CD
 internet access, copy those files next to the HTML under `vendor/` and rewrite the `<script src>` URLs
 (see `mkruntime.sh` in the session notes) — the app itself is otherwise fully offline.
 
+## Configuration
+
+`lib.js` reads `CC_SRC` (the desktop app checkout: `package.json`, `main.js`, `src/`, `renderer/`),
+`CC_DATA` (defaults to `../sample-data`) and `QA_ADMIN_USER` / `QA_ADMIN_PASSWORD` (the throw-away admin account
+the first run creates on the test profile — never a real account). Point `appHtmlPath` in the test profile's
+`config.json` at the HTML build under test.
+
 ## Stages
 
 | script | what it does |
 | --- | --- |
+| `smoke.js` | **the release gate**: fresh profile → first-run admin → import → restart → asserts dashboard restore, module globals, date sorting, calendar, e-mail bodies, MPR wizard, zero page errors |
 | `stage1.js` | first-run admin creation, sign in, import Edgenuity (3 weekly files), ALE enrollment, ALE contact log, Students report; dumps every visible control and the Today card |
 | `stage2.js` | Resume card, status filter, every Quick View, every View Mode, filters (advisor / teacher / school / search / ALE no-contact), every sort |
 | `stage3.js` | opens every panel (Worklist, Monthly Evaluations, WSLP, Attendance, Contact Watch, Monthly Reports, Digest, History, Ask, ALE queue, ALE sync, District Overview, Contacts, Data Setup, Reminders, Messages, Calendar, EOY, Diagnostics…), student tools, email buttons (captures the mailto), exports |
