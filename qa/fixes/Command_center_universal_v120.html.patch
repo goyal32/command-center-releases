@@ -1,0 +1,447 @@
+--- a/app-html/Command_center_universal_v120.html
++++ b/app-html/Command_center_universal_v120.html
+@@ -145,41 +145,44 @@
+         //              year date marks when next year's IEPs may be imported.
+         //              Months are 0-indexed (JS Date convention): June = 5.
+         calendar: {
++            // QA-fix 2026-09: this block was still the 2025-26 year while school_calendar (below) was
++            // 2026-27. The audit panel, WAC quick views, Free-Movement reminders and the year-end banner read
++            // THIS block, so they counted Labor Day 2026 as a school day and treated the whole 2026-27 year as
++            // "summer". It is now derived automatically from school_calendar at startup (see
++            // deriveLegacyCalendar below); the values here are the 2026-27 fallback.
+             schoolYear: {
+-                // First student day Aug 25, 2025 (Mon) → Sunday of that week is Aug 24
+-                startDate: '2025-08-24',
+-                // Last student day Jun 11, 2026 (Thu) → Saturday of that week is Jun 13
+-                endDate:   '2026-06-13',
+-                label:     '2025-2026',
++                // First student day Sep 1, 2026 (Tue) → Sunday of that week is Aug 30
++                startDate: '2026-08-30',
++                // Last student day Jun 17, 2027 (Thu) → Saturday of that week is Jun 19
++                endDate:   '2027-06-19',
++                label:     '2026-2027',
+             },
+             // Map weekKey (Sunday date) → { label, range }
+             breakWeeks: {
+-                '2025-11-23': { label: 'Thanksgiving', range: 'Nov 26-28, 2025' },
+-                '2025-12-21': { label: 'Winter Break', range: 'Dec 22-26, 2025' },
+-                '2025-12-28': { label: 'Winter Break', range: 'Dec 29 - Jan 2, 2026' },
+-                '2026-04-05': { label: 'Spring Break', range: 'Apr 6-10, 2026' },
++                '2026-11-22': { label: 'Thanksgiving', range: 'Nov 26-27, 2026' },
++                '2026-12-20': { label: 'Winter Break', range: 'Dec 21-25, 2026' },
++                '2026-12-27': { label: 'Winter Break', range: 'Dec 28, 2026 - Jan 1, 2027' },
++                '2027-04-04': { label: 'Spring Break', range: 'Apr 5-9, 2027' },
+             },
+             // Individual non-school days (Labor Day, holidays, conference days, etc.)
+             // ISO date strings — order doesn't matter.
+             singleDayClosures: [
+-                '2025-09-01',  // Labor Day
+-                '2025-11-11',  // Veterans Day
+-                '2025-11-26', '2025-11-27', '2025-11-28',  // Thanksgiving week
+-                '2025-12-18', '2025-12-19',  // semester-end conferences
+-                '2025-12-22', '2025-12-23', '2025-12-24', '2025-12-25', '2025-12-26',  // Winter Break wk 1
+-                '2025-12-29', '2025-12-30', '2025-12-31',  // Winter Break wk 2
+-                '2026-01-01', '2026-01-02',  // Winter Break end
+-                '2026-01-19',  // MLK Day
+-                '2026-01-23',  // (per Pasco calendar)
+-                '2026-02-16',  // Presidents Day
+-                '2026-03-25',  // (per Pasco calendar)
+-                '2026-04-06', '2026-04-07', '2026-04-08', '2026-04-09', '2026-04-10',  // Spring Break
+-                '2026-05-25',  // Memorial Day
+-                '2026-06-19',  // Juneteenth (also last day of school year for our purposes)
++                '2026-09-07',  // Labor Day
++                '2026-11-11',  // Veterans Day
++                '2026-11-26', '2026-11-27',  // Thanksgiving break
++                '2026-12-17', '2026-12-18',  // semester-end (per district calendar)
++                '2026-12-21', '2026-12-22', '2026-12-23', '2026-12-24', '2026-12-25',  // Winter Break wk 1
++                '2026-12-28', '2026-12-29', '2026-12-30', '2026-12-31', '2027-01-01',  // Winter Break wk 2
++                '2027-01-18',  // MLK Jr. Day
++                '2027-01-29',  // Semester break
++                '2027-02-15',  // Presidents' Day
++                '2027-04-05', '2027-04-06', '2027-04-07', '2027-04-08', '2027-04-09',  // Spring Break
++                '2027-05-31',  // Memorial Day
++                '2027-06-18',  // Juneteenth (observed)
+             ],
+             // Last date we have calendar data for. After this, system assumes
+             // school is closed (summer break safety).
+-            calendarEnd: '2026-06-19',
++            calendarEnd: '2027-06-18',
+             // IEP data retention boundaries (used by the IEP parser to auto-clear
+             // last year's data when transitioning to a new school year)
+             iepRetention: {
+@@ -380,6 +383,43 @@
+         }
+     })();
+ 
++    // ---- QA-fix: ONE calendar. Modules written before v147 (audit panel, WAC quick views, reminders,
++    // Free Movement, year-end banner, IEP retention) read TENANT_CONFIG.calendar; everything newer reads
++    // TENANT_CONFIG.school_calendar. Derive the old shape from the new block so the two can never drift
++    // again (the old block above is only a fallback when school_calendar is missing).
++    (function deriveLegacyCalendar(){
++        try {
++            var TC = window.TENANT_CONFIG; var sc = TC && TC.school_calendar;
++            if (!sc || !sc.first_day || !sc.last_day) return;
++            var pad = function(n){ return (n < 10 ? '0' : '') + n; };
++            var ymd = function(d){ return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); };
++            var parse = function(str){ var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(str || '')); return m ? new Date(+m[1], +m[2] - 1, +m[3]) : null; };
++            var first = parse(sc.first_day), last = parse(sc.last_day); if (!first || !last) return;
++            var closures = {}, labels = {};
++            (sc.no_school || []).forEach(function(x){
++                if (typeof x === 'string') { closures[x] = 1; return; }
++                if (!x || !x.from || !x.to) return;
++                var d = parse(x.from), e = parse(x.to); if (!d || !e) return;
++                for (; d <= e; d.setDate(d.getDate() + 1)) { var w = d.getDay(); if (w !== 0 && w !== 6) { closures[ymd(d)] = 1; if (x.label) labels[ymd(d)] = x.label; } }
++            });
++            var sunday = new Date(first); sunday.setDate(sunday.getDate() - sunday.getDay());
++            var saturday = new Date(last); saturday.setDate(saturday.getDate() + (6 - last.getDay()));
++            var breakWeeks = {};
++            for (var ws = new Date(sunday); ws <= saturday; ws.setDate(ws.getDate() + 7)) {
++                var schoolDays = 0, label = '', firstOff = null, lastOff = null;
++                for (var i = 1; i <= 5; i++) { var d = new Date(ws); d.setDate(d.getDate() + i); if (d < first || d > last) continue; var k = ymd(d); if (closures[k]) { label = label || labels[k] || 'Break'; firstOff = firstOff || d; lastOff = d; } else schoolDays++; }
++                if (schoolDays < 3 && firstOff) breakWeeks[ymd(ws)] = { label: label, range: (firstOff.getMonth() + 1) + '/' + firstOff.getDate() + (lastOff && lastOff.getTime() !== firstOff.getTime() ? '-' + (lastOff.getMonth() + 1) + '/' + lastOff.getDate() : '') + ', ' + (lastOff || firstOff).getFullYear() };
++            }
++            var list = Object.keys(closures).sort();
++            TC.calendar = Object.assign({}, TC.calendar || {}, {
++                schoolYear: { startDate: ymd(sunday), endDate: ymd(saturday), label: first.getFullYear() + '-' + last.getFullYear() },
++                breakWeeks: breakWeeks,
++                singleDayClosures: list,
++                calendarEnd: list.length && list[list.length - 1] > ymd(last) ? list[list.length - 1] : ymd(last),
++            });
++        } catch(e) { try { console.warn('[tenant] calendar derivation skipped:', e && e.message); } catch(_e){} }
++    })();
++
+     // ---- v120 Helper: configured LMS display name ----
+     // Used by dynamically-built strings (emails, toasts, panel text) so the
+     // LMS brand comes from TENANT_CONFIG instead of being hardcoded.
+@@ -402,9 +442,22 @@
+             'pacing-asc':             'Progress Reminder',
+             'default':                'Reminder',
+             'unmapped':               'Course Reminder',
++            // QA-fix: these views went out with the bare subject "Reminder"
++            'missed-last-week-contact': 'Weekly Contact Reminder',
++            'no-contact-15-19':       'Weekly Contact Required — Please Reply',
++            'no-contact-20':          'Urgent: Weekly Contact Required',
++            'extremely-behind':       "Your Course Progress: Let's Get You Back on Track",
++            'behind-no-contact':      'Course Progress and Weekly Contact — Please Reply',
++            'bucket-significantly-behind': 'Course Progress Reminder',
++            'bucket-struggling':      'Course Progress Check-In',
++            'bucket-watchlist':       'Course Progress Check-In',
++            'target-soon-behind':     'Target Date Approaching',
++            'graded-out':             'Course Complete — Final Grade',
++            'ungraded-work':          'Submitted Work Awaiting Grade',
+         };
+         var subjects = (window.TENANT_CONFIG && window.TENANT_CONFIG.email_subjects) || {};
+-        return subjects[sortKey] || subjects['default'] || FALLBACKS[sortKey] || FALLBACKS['default'];
++        // QA-fix: a view-specific fallback beats the tenant's generic default ("Reminder")
++        return subjects[sortKey] || FALLBACKS[sortKey] || subjects['default'] || FALLBACKS['default'];
+     };
+ 
+     // ---- Apply TENANT_CONFIG to the page as early as possible ----
+@@ -6152,7 +6205,9 @@
+       const to = norm(contact.student_email);
+       const cc = dedupe([norm(contact.guardian_email), norm(contact.counselor_email)].filter(Boolean).join(';'));
+       const subject = window.__getEmailSubject('no-activity-7');
+-      const body = noActivityBody();
++      // QA-fix: this is a ONE-student email — greet the student by name, not "Hello Students,"
++      const firstName = (typeof window.__extractPreferredFirstName === 'function') ? window.__extractPreferredFirstName(studentName) : '';
++      const body = noActivityBody().replace(/^Hello Students,/, firstName ? 'Hello ' + firstName + ',' : 'Hello,');
+ 
+       const base = to ? `mailto:${to}?` : 'mailto:?';
+       return base + (cc ? `cc=${encodeURIComponent(cc)}&` : '') + `subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+@@ -11655,6 +11710,14 @@
+         function autoSaveWeeklySnapshotSilently() {
+             if (!dashboardData || !dashboardData.length) return false;
+             try {
++                // QA-fix: this ran on EVERY import and overwrote the saved snapshot with the data just imported,
++                // so the Weekly Snapshot Compare always said "No major changes" and a snapshot the teacher saved
++                // by hand was silently replaced. Keep a snapshot that is less than a week old as the baseline.
++                const existing = getSavedSnapshot();
++                if (existing && existing.savedAt) {
++                    const age = Date.now() - new Date(existing.savedAt).getTime();
++                    if (Number.isFinite(age) && age >= 0 && age < 6.5 * 86400000) return false;
++                }
+                 const snapshot = buildSnapshotFromDashboardData(dashboardData);
+                 localStorage.setItem(SNAPSHOT_STORAGE_KEY, JSON.stringify(snapshot));
+                 return true;
+@@ -12359,7 +12422,7 @@
+             }).join('');
+ 
+             const details = cmp.changes.slice(0, 8).map(ch => {
+-                const deltaText = (ch.delta === null) ? '' : (ch.delta < 0 ? `improved ${Math.abs(ch.delta).toFixed(1)}%` : ch.delta > 0 ? `worsened ${ch.delta.toFixed(1)}%` : 'same pacing');
++                const deltaText = (ch.delta === null) ? '' : (ch.delta > 0 ? `improved ${ch.delta.toFixed(1)}%` : ch.delta < 0 ? `worsened ${Math.abs(ch.delta).toFixed(1)}%` : 'same pacing');   // QA-fix: delta = current − previous, so + is improvement (the labels were swapped)
+                 return `<li><span class="font-black text-slate-900">${escapeHtml(ch.name || 'Student')}</span> — ${escapeHtml(ch.courseName || '')}: <span class="font-bold">${escapeHtml(ch.previousBucket || 'Unknown')}</span> → <span class="font-bold">${escapeHtml(ch.currentBucket || 'Unknown')}</span>${deltaText ? ` <span class="text-slate-500">(${deltaText})</span>` : ''}</li>`;
+             }).join('');
+             const hasDetails = Boolean(details);
+@@ -12423,8 +12486,10 @@
+         }
+         renderSnapshotComparison();
+         renderHistoryPanel();
+-        restoreAleFromStorage();
+-        restoreLatestDashboardImport();
++        // QA-fix: restoreAleFromStorage() / restoreLatestDashboardImport() used to run HERE, half-way through this
++        // script, and updateDashboard() then touched `const`/`let` bindings declared further down (__POLICY_SORTS,
++        // __statusFilterSelection, …) → ReferenceError → the saved dashboard never restored on launch. They now
++        // run at the END of this script (see the last lines), once every binding exists.
+ 
+         function __normalizeDigestFilterValue(value) {
+             const raw = String(value || '').trim();
+@@ -12853,7 +12918,10 @@
+ 
+ 
+         function __normStr(v){ return (v === null || v === undefined) ? '' : String(v).trim(); }
+-        let __statusFilterSelection = 'all';
++        // QA-fix: `var` (hoisted) — restoreLatestDashboardImport() runs earlier in this script and
++        // calls __getStatusFilterSelection(); with `let` that threw a ReferenceError (temporal dead zone),
++        // the saved dashboard never restored on launch and every teacher saw the "Resume" card instead.
++        var __statusFilterSelection = 'all';
+ 
+         function __setStatusFilterSelection(value) {
+             __statusFilterSelection = __normStr(value) || 'all';
+@@ -13095,6 +13163,17 @@
+             return map;
+         }
+ 
++        // QA-fix: timestamp (local midnight) for an ALE contact date in either "YYYY-MM-DD[ hh:mm:ss]" or "M/D/YYYY" form; null when unreadable.
++        function __aleContactDateTs(v) {
++            const s = String(v == null ? '' : v).trim();
++            let m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
++            if (m) return new Date(+m[1], +m[2] - 1, +m[3]).getTime();
++            m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
++            if (m) return new Date(+m[3], +m[1] - 1, +m[2]).getTime();
++            const d = new Date(s);
++            return isNaN(d.getTime()) ? null : d.getTime();
++        }
++        window.__aleContactDateTs = __aleContactDateTs;
+         function __parseAleContactLog(rows) {
+             // v77.4/77.5/77.7: Returns three maps.
+             // - dates: { sid: "YYYY-MM-DD" } — most recent contact date, ANY type
+@@ -13186,7 +13265,11 @@
+             const studentTypeDates = {};
+             Object.keys(studentTypeDatesMap).forEach(function(sid){
+                 studentTypeDates[sid] = Array.from(studentTypeDatesMap[sid]).sort(function(a,b){
+-                    return String(b).localeCompare(String(a)); // desc — most recent first
++                    // QA-fix: compare as DATES, not strings — an Excel-resaved log ("9/9/2026" vs "9/16/2026")
++                    // sorted wrongly and every student showed "No Contact This Week". String order is the fallback.
++                    const ta = __aleContactDateTs(a), tb = __aleContactDateTs(b);
++                    if (ta !== null && tb !== null && ta !== tb) return tb - ta; // desc — most recent first
++                    return String(b).localeCompare(String(a));
+                 });
+             });
+ 
+@@ -13677,8 +13760,17 @@
+                 'ten-day-check': 'This is a reminder that students are expected to make at least 5–10% progress within the first 10 days of enrollment/signing the learning plan.',
+                 'watchlist-candidates': 'Our records show that you may not yet be meeting the early progress expectation for your course(s).',
+                 'no-activity-7': 'Our records show little or no recent course activity. Please log in and resume work right away.',
+-                'missing-weekly-contact': 'This is a reminder that weekly communication is required in the program in addition to weekly progress.'
++                'missing-weekly-contact': 'This is a reminder that weekly communication is required in the program in addition to weekly progress.',
++                // QA-fix: these Quick Views had no body and sent the new-enrollment "10% in 10 days" warning to the wrong students
++                'missed-last-week-contact': 'Our records show no check-in with your teacher last week. Weekly communication is required in the program — please reply to this email today so we can keep you enrolled.',
++                'no-contact-15-19': 'Our records show it has been more than two weeks without a direct check-in with your teacher. Weekly contact is required to stay enrolled — please reply to this email or call today.',
++                'no-contact-20': 'Our records show 20 or more school days without a direct check-in with your teacher. This puts your enrollment in the program at risk. Please reply to this email or call today so we can keep you enrolled.',
++                'expired-date': 'Our records show that the target date for one or more of your courses has passed and the course is not yet complete. Please log in and finish the remaining work as soon as possible, and reply if you need a new plan.',
++                'graded-out': 'Great news — our records show you have reached 100% in one or more courses. Your teacher will finalize the grade; please make sure every assignment is submitted and reply if anything still shows as incomplete.',
++                'ungraded-work': 'Our records show you have submitted work that is waiting to be graded. No action is needed from you right now — keep working on your next lessons, and reply if you have a question about a submitted assignment.'
+             };
++            // the 10-day watchlist paragraph belongs only to the new-enrollment views
++            const tenDayKeys = { 'new-start-5': 1, 'new-start-10': 1, 'ten-day-check': 1, 'watchlist-candidates': 1 };
+             // v29: Custom full-body messages for the two new filters (Extremely Behind, Behind + No Contact)
+             // These need different structure than the shared template, so we short-circuit early.
+             if (sortKey === 'extremely-behind') {
+@@ -13810,19 +13902,22 @@
+                     'Sincerely,'
+                 ].join('\n');
+             }
++            const tenDayLines = (tenDayKeys[sortKey] || !introMap[sortKey]) ? [
++                'Students are expected to make at least 10% progress in all enrolled courses within the first 10 days of enrollment/signing the learning plan.',
++                'Students who do not meet this expectation may be placed on the watchlist for review according to program procedures.',
++                ''
++            ] : [];
+             return [
+                 'Hello,',
+                 '',
+                 introMap[sortKey] || 'This is a reminder regarding your course progress.',
+-                '',
+-                'Students are expected to make at least 10% progress in all enrolled courses within the first 10 days of enrollment/signing the learning plan.',
+-                'Students who do not meet this expectation may be placed on the watchlist for review according to program procedures.',
+-                '',
++                ''
++            ].concat(tenDayLines, [
+                 'Please make sure you are logging in regularly, completing coursework, and staying in communication.',
+                 'If you need help getting started, please reply to this email.',
+                 '',
+                 'Please let me know if you have any questions.'
+-            ].join('\n');
++            ]).join('\n');
+         }
+         function buildPolicyStudentMailto(studentName, studentNumber, rowsForStudent, sortVal) {
+             const rows = Array.isArray(rowsForStudent) ? rowsForStudent : [];
+@@ -13836,7 +13931,7 @@
+             const to = studentEmail || '';
+             const cc = __dedupeEmails([parentEmail, counselorEmail].filter(Boolean).join(';'));
+ 
+-            const cleanToken = s => String(s || '').replace(/[^A-Za-z'’-]/g, '').trim();
++            const cleanToken = s => String(s || '').replace(/[^\p{L}'’-]/gu, '').trim();   // QA-fix: keep accented letters (José, Zoë)
+             const looksLikeInitials = s => {
+                 const t = cleanToken(s);
+                 return !!t && t.length <= 2;
+@@ -14126,7 +14221,7 @@
+ 
+ 
+         function __cleanNameToken(s) {
+-            return String(s || '').replace(/[^A-Za-z'’\-]/g, '').trim();
++            return String(s || '').replace(/[^\p{L}'’\-]/gu, '').trim();   // QA-fix: keep accented letters (José, Zoë)
+         }
+ 
+         function __looksLikeInitialsToken(s) {
+@@ -15772,8 +15867,9 @@
+                 return true;
+             }
+             const mostRecentStudentTypeDate = studentTypeDates[0];
+-            const dt = new Date(mostRecentStudentTypeDate);
+-            if (dt.toString() === 'Invalid Date') return true;
++            const __ts = __aleContactDateTs(mostRecentStudentTypeDate);   // QA-fix: local-midnight parse (a bare "YYYY-MM-DD" in new Date() is UTC and lands on the previous evening in Pacific time)
++            if (__ts === null) return true;
++            const dt = new Date(__ts);
+             // Compute Sunday 00:00 of LAST week (start of last week's window)
+             const now = new Date();
+             const lastWeekSunday = new Date(now);
+@@ -16595,8 +16691,8 @@
+             const right = s.split(',')[1].trim();
+             let parts = right.split(/\s+/).filter(Boolean);
+ 
+-            // Remove leading short code tokens (1–3 letters), e.g., P, iC, iS
+-            while (parts.length && /^[A-Za-z]{1,3}$/.test(parts[0])) parts.shift();
++            // Remove leading short code tokens (1–2 letters), e.g., P, iC, iS  (QA-fix: 3-letter first names such as Eva, Ian, Ana were being dropped)
++            while (parts.length > 1 && /^[A-Za-z]{1,2}$/.test(parts[0])) parts.shift();
+ 
+             return (parts[0] || right.split(/\s+/)[0] || s.split(/\s+/)[0]);
+         }
+@@ -17045,9 +17141,9 @@
+                 ? advisorFilter.options[advisorFilter.selectedIndex].text
+                 : '';
+ 
+-            const scopeBase = (teacherText && !/all/i.test(teacherText))
++            const scopeBase = (teacherText && !/^all\b/i.test(teacherText))   // QA-fix: "Hall", "Allen", "Wallace" matched /all/
+                 ? teacherText
+-                : ((advisorText && !/all/i.test(advisorText)) ? advisorText : 'Current Filters');
++                : ((advisorText && !/^all\b/i.test(advisorText)) ? advisorText : 'Current Filters');
+             const scope = contextTitle ? `${contextTitle} • ${scopeBase}` : scopeBase;
+ 
+             const subject = (statusLabel === 'ExtremeBehind')
+@@ -20755,6 +20851,10 @@
+             if (nm && window.handleStudentClick) window.handleStudentClick(nm);
+         });
+ 
++        // QA-fix: restore the last import once every binding in this script is initialised (moved from ~line 12480).
++        try { restoreAleFromStorage(); } catch (e) { console.warn('ALE restore failed', e); }
++        try { restoreLatestDashboardImport(); } catch (e) { console.warn('Latest dashboard restore failed', e); }
++
+ </script>
+ 
+ 
+@@ -24421,7 +24521,10 @@
+         out._neverContactedSids.push(sid);
+         return;
+       }
+-      var d = new Date(lastStr);
++      // QA-fix: a bare "YYYY-MM-DD" in new Date() is UTC midnight = the previous evening in Pacific time,
++      // which pushed Sunday contacts into last week. Parse as a LOCAL date.
++      var __lm = String(lastStr).match(/^(\d{4})-(\d{1,2})-(\d{1,2})/), __um = String(lastStr).match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
++      var d = __lm ? new Date(+__lm[1], +__lm[2] - 1, +__lm[3]) : __um ? new Date(+__um[3], +__um[1] - 1, +__um[2]) : new Date(lastStr);
+       if (isNaN(d.getTime())) return;
+       var ts = d.getTime();
+ 
+@@ -47762,7 +47865,8 @@
+       if (url.length > MAILTO_MAX) {
+         // even the address list alone is too long: fall back to copying the addresses
+         copy(bcc.join('; '), 'Too many addresses for one click — BCC list copied, paste it into the BCC field.');
+-        url = 'mailto:' + encodeURIComponent(to) + '?subject=' + encodeURIComponent(subject || '');
++        // QA-fix: the addresses are on the clipboard now, so the message text can ride in the link again (it was lost before)
++        url = 'mailto:' + encodeURIComponent(to) + '?subject=' + encodeURIComponent(subject || '') + '&body=' + encodeURIComponent(body || '');
+         note = ' Paste the BCC list (on your clipboard) into the BCC field.';
+       }
+     }
+@@ -50208,7 +50312,7 @@
+     for (var i = 0; i < 4 && !schoolWeeks(pick).length; i++) { var d = new Date(+pick.slice(0, 4), +pick.slice(5, 7), 1); pick = d.getFullYear() + '-' + pad(d.getMonth() + 1); }
+     return pick;
+   }
+-  function deadlineText(ym){ var win = lastWorkingDays(ym, settings.windowWorkingDays); if (!win.length) return ''; var now = new Date(); now.setHours(0, 0, 0, 0); var left = win.filter(function(d){ return d >= now; }).length; return 'MPR window: ' + win[0].toLocaleDateString() + ' – ' + win[win.length - 1].toLocaleDateString() + (left ? ' · ' + left + ' working day' + (left === 1 ? '' : 's') + ' left' : ' · window closed'); }
++  function deadlineText(ym){ var win = lastWorkingDays(ym, settings.windowWorkingDays); if (!win.length) return ''; var now = todayDate(); /* QA-fix: same clock as defaultMonth() */ var left = win.filter(function(d){ return d >= now; }).length; return 'MPR window: ' + win[0].toLocaleDateString() + ' – ' + win[win.length - 1].toLocaleDateString() + (left ? ' · ' + left + ' working day' + (left === 1 ? '' : 's') + ' left' : ' · window closed'); }
+   function schoolDaysFrom(d, n){ var x = new Date(d); while (n > 0) { x.setDate(x.getDate() + 1); if (isWorkingDay(x)) n--; } return x; }
+ 
+   // ---------- data assembly ----------
+@@ -50317,7 +50421,7 @@
+     var last = contacts.map(function(c){ return parseDate(c.contact_date); }).filter(Boolean).sort(function(a, b){ return b - a; })[0] || parseDate((window.__aleLastContactByStudentNumber || {})[s.sid]);
+     var days = last ? Math.floor((today - last) / 86400000) : null;
+     var comm = 'Weekly Requirements Met';
+-    if (weeks.length && contacts.length) { var missedW = weeks.length - weeksMet; comm = missedW === 0 ? 'Weekly Requirements Met' : missedW === 1 ? 'Needs Improvement' : weeksMet === 0 ? 'No Communication' : 'Unsatisfactory'; }
++    if (weeks.length && contacts.length) { var missedW = weeks.length - weeksMet; comm = missedW === 0 ? 'Weekly Requirements Met' : weeksMet === 0 ? 'No Communication' : missedW === 1 ? 'Needs Improvement' : 'Unsatisfactory'; }   // QA-fix: zero contact weeks is "No Communication" even when only one week has been judged
+     else if (weeks.length && !contacts.length && state.monthLoaded) comm = 'No Communication';
+     else if (days == null) comm = 'No Communication'; else if (days <= settings.commMetDays) comm = 'Weekly Requirements Met'; else if (days <= settings.commNeedsDays) comm = 'Needs Improvement'; else if (days <= settings.commUnsatDays) comm = 'Unsatisfactory'; else comm = 'No Communication';
+     var direct = contacts.filter(qualifies);
+@@ -50367,7 +50471,7 @@
+     if (behind.length) challenges.push(behind.map(function(c){ var r = reportFor(s, c.name); var g = dailyGoalText(r); return c.name + ' (' + paceText(c) + (c.failing ? ', grade ' + c.grade.toFixed(0) + '% below passing' : '') + (g ? ', needs ' + g : '') + ')'; }).join('; ') + '.');
+     if (attMissed.length) challenges.push('The weekly attendance course was missed the week' + (attMissed.length > 1 ? 's' : '') + ' of ' + attMissed.map(fmtW).join(', ') + '.');
+     if (ev.weeksTotal && ev.weeksMet < ev.weeksTotal) challenges.push('Weekly contact was made in ' + ev.weeksMet + ' of ' + ev.weeksTotal + ' school weeks (' + ev.comm + ').');
+-    var html = '<p>Monthly Progress Review for ' + esc(month) + ' with ' + esc(first) + ', by ' + esc(method) + ' on ' + esc(when) + '. ' + contactLine + '</p>';
++    var html = '<p>Monthly Progress Review for ' + esc(month) + ' with ' + esc(first) + ', by ' + esc(method) + (when === 'today' ? ' today' : ' on ' + esc(when)) + '. ' + contactLine + '</p>';   // QA-fix: was "on today"
+     html += '<p><b>Successes discussed:</b> ' + (successes.length ? esc(successes.join(' ')) : 'None noted this month.') + '</p>';
+     html += '<p><b>Challenges discussed:</b> ' + (challenges.length ? esc(challenges.join(' ')) : 'None — ' + esc(first) + ' is meeting the program requirements.') + '</p>';
+     if (status === 'Unsatisfactory') {
+@@ -50403,9 +50507,11 @@
+       render(); return state.pdfs[k(s.sid)];
+     }).catch(function(e){ toast('PDF: ' + e.message, 'warn', 7000); return null; });
+   }
++  /** QA-fix: the red "[ALE contact log not loaded…]" / "No direct personal contact…" notes are for the teacher's panel only — never send them into the form the family receives. */
++  function stripPanelWarnings(html){ return String(html || '').replace(/<span style="color:#b91c1c">[\s\S]*?<\/span>/g, '').replace(/\s{2,}/g, ' '); }
+   function openForm(s){
+     var ev = evaluate(s), edits = state.edits[k(s.sid)] || {};
+-    var payload = { student_number: s.sid, month: monthName(state.month + '-01'), meeting_method: edits.meeting_method || ev.meetingMethod, progress_status: edits.status || ev.status, intervention_needed: edits.intervention != null ? edits.intervention : ev.intervention, intervention_date: edits.intervention_date || '', narrative_html: edits.narrative || narrativeHtml(s, ev, { meetingMethod: edits.meeting_method, status: edits.status }), report_notes_html: reportNotesHtml(s, ev), progress_summary: edits.summary || ev.summary, communication_status: edits.comm || ev.comm, pdf: state.pdfs[k(s.sid)] || null };
++    var payload = { student_number: s.sid, month: monthName(state.month + '-01'), meeting_method: edits.meeting_method || ev.meetingMethod, progress_status: edits.status || ev.status, intervention_needed: edits.intervention != null ? edits.intervention : ev.intervention, intervention_date: edits.intervention_date || '', narrative_html: stripPanelWarnings(edits.narrative || narrativeHtml(s, ev, { meetingMethod: edits.meeting_method, status: edits.status })), report_notes_html: reportNotesHtml(s, ev), progress_summary: edits.summary || ev.summary, communication_status: edits.comm || ev.comm, pdf: state.pdfs[k(s.sid)] || null };
+     // (S4/S5) what was prepared, bound to THIS month: the fill callback and the ledger use it, never "the currently selected month"
+     state.prepared[String(s.sid)] = { month: state.month, status: payload.progress_status, summary: payload.progress_summary, comm: payload.communication_status, name: s.name, at: new Date().toISOString() };
+     var url = settings.laserficheUrl + '?StudentNumber=' + encodeURIComponent(s.sid) + '&Advisor=' + encodeURIComponent(s.advisor) + '&reportMonth=' + encodeURIComponent(payload.month);
+@@ -50895,7 +51001,7 @@
+     try { var m = window.__aleStudentTypeContactDatesByStudentNumber; if (m && m[sid] && m[sid].length) dates = m[sid]; } catch(e){}
+     if (!dates) { try { var last = window.__aleLastContactByStudentNumber && window.__aleLastContactByStudentNumber[sid]; if (last) dates = [last]; } catch(e){} }
+     if (!dates || !dates.length) return null;
+-    var latest = dates.slice().sort().slice(-1)[0];
++    var latest = dates.slice().sort(function(a, b){ var ta = window.__aleContactDateTs ? window.__aleContactDateTs(a) : null, tb = window.__aleContactDateTs ? window.__aleContactDateTs(b) : null; return (ta != null && tb != null) ? ta - tb : String(a).localeCompare(String(b)); }).slice(-1)[0];   // QA-fix: date order, not string order
+     return daysSince(latest, today);
+   }
+   /** Score one student's rows. Returns { score, reasons[], worstPacing, expired, failing, inactiveDays, contactDays, projectedLate }. */
+@@ -51139,7 +51245,7 @@
+     try { if (map && map[sid] && map[sid].length) dates = map[sid]; } catch(e){}
+     if (!dates) { try { var lm = ctx && ctx.lastContact ? ctx.lastContact : window.__aleLastContactByStudentNumber; if (lm && lm[sid]) dates = [lm[sid]]; } catch(e){} }
+     if (!dates || !dates.length) return null;
+-    return daysSince(dates.slice().sort().slice(-1)[0], ctx && ctx.today);
++    return daysSince(dates.slice().sort(function(a, b){ var ta = window.__aleContactDateTs ? window.__aleContactDateTs(a) : null, tb = window.__aleContactDateTs ? window.__aleContactDateTs(b) : null; return (ta != null && tb != null) ? ta - tb : String(a).localeCompare(String(b)); }).slice(-1)[0], ctx && ctx.today);   // QA-fix: date order, not string order
+   }
+   /** Per-student state for one import: bucket, risk, contact gap, expired count. ctx: { today, aleLoaded, contactDates, lastContact, risk } */
+   function snapshotOf(list, ctx){
+@@ -52135,7 +52241,7 @@
+     (rows || []).forEach(function(r){
+       var ext = String(r['External ID'] || ''); var sid = sidOf(ext); if (!sid) return;
+       var s = by[sid]; if (!s) { s = by[sid] = { sid: sid, name: norm(r['Name'] || r['Student Name'] || ''), advisor: token(ext, 'advisor_token'), counselor: token(ext, 'counselor_token'), school: norm(r['School'] || r["Course's School"] || r['Home School'] || ''), courses: [] }; }
+-      var status = norm(r['Status'] || '').toLowerCase(); if (status && /complete|dropped|archived|inactive/.test(status)) return;
++      var status = norm(r['Enrollment Status'] || r['Status'] || '').toLowerCase(); if (status && /complete|dropped|archived|inactive/.test(status)) return;   // QA-fix: the export column is "Enrollment Status"
+       var start = pDate(r['Start Date'] || r['Enrollment Date']), target = pDate(r['Target Date'] || r['Target Completion Date']);
+       var la = pDate(r['Date of Last Activity'] || r['Last Activity'] || r['Last Login'] || r['Last Worked Date']), lg = pDate(r['Last Gradebook Entry'] || r['Last Graded']);
+       var progress = num(r['Progress']), pacing = num(r['Pacing']), grade = num(r['Overall Grade'] || r['Actual Grade'] || r['Grade']);
+@@ -52521,7 +52627,7 @@
+     sel.value = (lastQv && lastQv !== QV_VALUE) ? lastQv : '';
+     openView();
+   }, true);
+-  function todayFacts(){ try { var rows = pageRows(); if (!rows.length || !allowed()) return []; var v = current || compute(); var top = v.causes[0]; return [{ kind: 'leadership', level: 'quiet', text: 'Program: ' + ofText(v.program.struggling, v.program.total) + ' behind pace' + (top ? ' · main driver: ' + top.label + ' (' + top.primary + ')' : '') + '.', action: { type: 'fn', value: '__ipalLeadershipOpen' } }]; } catch(e){ return []; } }
++  function todayFacts(){ try { var rows = pageRows(); if (!rows.length || !allowed()) return []; var v = current || compute(); var top = v.causes[0]; return [{ kind: 'leadership', level: 'quiet', text: 'Program: ' + ofText(v.program.struggling, v.program.total) + ' behind pace (11%+ behind or past target)' + (top ? ' · main driver: ' + top.label + ' (' + top.primary + ')' : '') + '.', action: { type: 'fn', value: '__ipalLeadershipOpen' } }]; } catch(e){ return []; } }
+   var pending = 0;
+   function schedule(){ if (pending) return; pending = setTimeout(function(){ pending = 0; decorate(); }, 120); }
+   function boot(){
+@@ -53424,4 +53530,5 @@
+ 
+ 
+ </body>
+-</html>
+\ No newline at end of file
++</html>
++

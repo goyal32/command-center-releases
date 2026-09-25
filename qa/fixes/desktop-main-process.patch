@@ -1,0 +1,63 @@
+--- a/main.js
++++ b/main.js
+@@ -546,6 +546,9 @@
+  */
+ function runAutoBackup(intervalMs) {
+   const s = session.current();
++  // QA-fix: on the sign-in page there is no renderer data to bundle — a backup written then is a DB-only
++  // file that counts against `keep`, postpones the next real backup by a full interval and can prune real ones.
++  if (!s) return Promise.resolve();
+   return backup
+     .maybeAutoBackup({
+       storage,
+@@ -1050,7 +1053,7 @@
+     // here blocked the quit and made NSIS fail on the running app's files.
+     // Main-initiated navigation (logout/login page switches via navigate())
+     // is likewise always intentional — never show the close dialog for it.
+-    if (app.isQuittingForUpdate || app.isNavigatingMainWindow) {
++    if (app.isQuittingForUpdate || app.isNavigatingMainWindow || app.isQuitting) {
+       event.preventDefault(); // allow the unload/close
+       return;
+     }
+@@ -1458,10 +1461,18 @@
+   app.quit();
+ });
+ 
+-app.on('before-quit', async () => {
++app.on('before-quit', () => {
++  // QA-fix: an explicit quit (File > Exit, "Restart Now" after a restore) must not be second-guessed by the
++  // page's beforeunload guard, and the database must stay OPEN until the window's close handler has written
++  // the final backup — it used to be closed here, before the window closed, so that backup always failed
++  // ("The database connection is not open") and choosing "Stay" left the app running with no database.
++  app.isQuitting = true;
+   try { if (aleSync) aleSync.stop(); } catch (_e) { /* best effort */ }
+   try { if (edgenuity) edgenuity.stop(); } catch (_e) { /* best effort */ }
+   try { if (laserfiche) laserfiche.stop(); } catch (_e) { /* best effort */ }
++});
++
++app.on('will-quit', async () => {
+   try {
+     if (storage) await storage.close();
+   } catch (err) {
+--- a/src/laserfiche.js
++++ b/src/laserfiche.js
+@@ -116,7 +116,7 @@
+     if (!payload) return;
+     pending.delete(String(sn));
+     let result;
+-    try { result = await wc.executeJavaScript(FILL_SCRIPT.replace('__PAYLOAD__', JSON.stringify(payload)), true); }
++    try { result = await wc.executeJavaScript(FILL_SCRIPT.replace('__PAYLOAD__', () => JSON.stringify(payload))   /* QA-fix: a string replacement interprets $& $' $$ inside the narrative */, true); }
+     catch (e) { result = { ok: false, error: e.message }; }
+     audit('mpr.form_filled', { student_number: sn, ok: !!(result && result.ok), filled: result && result.filled ? result.filled.length : 0, skipped: result && result.skipped ? result.skipped : [], error: result && result.error });
+     try { if (typeof onFilled === 'function') onFilled(Object.assign({ student_number: sn }, result || {})); } catch (_e) { /* best effort */ }
+--- a/renderer/login.html
++++ b/renderer/login.html
+@@ -456,7 +456,7 @@
+         password: $('frPassword').value,
+       });
+       if (!login.ok) {
+-        setMode(false);
++        setMode('login');   // QA-fix: setMode(false) hid every form, leaving nothing to type into
+         showError('Account created — please sign in.');
+       }
+     } catch (e) {

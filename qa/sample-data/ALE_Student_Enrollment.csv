@@ -1,0 +1,13 @@
+student_number,student_name,school,grade_level,student_email,guardian_email,counselor,learning_plan_status,advisor,learning_plan_start_date,learning_plan_end_date,dropped_date
+412001,"Alvarez, Diego",Chiawana High School,11,dalvarez@students.example.org,parent.dalvarez@example.org,mg@example.org,Active,"GARCIA, HELEN",8/24/2026,6/10/2027,
+412002,"Baker, Priya",Chiawana High School,10,pbaker@students.example.org,parent.pbaker@example.org,mg@example.org,Active,"GARCIA, HELEN",8/24/2026,6/10/2027,
+412003,"Chen, Marcus",Chiawana High School,11,mchen@students.example.org,parent.mchen@example.org,th@example.org,Active,"GARCIA, HELEN",8/24/2026,6/10/2027,
+412004,"Dawson, Kayla",Chiawana High School,12,kdawson@students.example.org,parent.kdawson@example.org,th@example.org,Active,"STAHL, MARK",8/24/2026,6/10/2027,
+412005,"Espinoza, Luis",Pasco High School,10,lespinoza@students.example.org,parent.lespinoza@example.org,jq@example.org,Active,"STAHL, MARK",8/24/2026,6/10/2027,
+412006,"Foster, Emma",Pasco High School,9,efoster@students.example.org,parent.efoster@example.org,jq@example.org,Active,"STAHL, MARK",9/21/2026,6/10/2027,
+412007,"Gutierrez, Sofia",Chiawana High School,12,sgutierrez@students.example.org,parent.sgutierrez@example.org,mg@example.org,Active,"KIM, LENA",8/24/2026,6/10/2027,
+412008,"Hale, Jordan",Pasco High School,11,jhale@students.example.org,parent.jhale@example.org,az@example.org,Active,"KIM, LENA",8/24/2026,6/10/2027,
+412009,"Ibarra, Mateo",Pasco High School,10,mibarra@students.example.org,parent.mibarra@example.org,az@example.org,Closed,"KIM, LENA",8/24/2026,6/10/2027,9/10/2026
+412010,"Johnson, Aaliyah",Chiawana High School,11,,,th@example.org,Active,"GARCIA, HELEN",8/24/2026,6/10/2027,
+412011,"Kowalski, Ben",Pasco High School,12,bkowalski@students.example.org,parent.bkowalski@example.org,jq@example.org,Active,"STAHL, MARK",8/24/2026,6/10/2027,
+412012,"Lopez, Isabella",Chiawana High School,9,ilopez@students.example.org,parent.ilopez@example.org,mg@example.org,Active,"KIM, LENA",8/24/2026,6/10/2027,

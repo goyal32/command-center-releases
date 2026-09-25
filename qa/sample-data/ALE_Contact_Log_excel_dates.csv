@@ -1,0 +1,45 @@
+student_number,student_name,contact_date,created_by,type,notes
+412001,"Alvarez, Diego",9/23/2026,"GARCIA, HELEN",Teams,<p>Weekly check-in</p>
+412001,"Alvarez, Diego",9/16/2026,"GARCIA, HELEN",Email,<p>Weekly check-in</p>
+412001,"Alvarez, Diego",9/9/2026,"GARCIA, HELEN",Phone,<p>Weekly check-in</p>
+412001,"Alvarez, Diego",9/2/2026,"GARCIA, HELEN",Phone,<p>Weekly check-in</p>
+412001,"Alvarez, Diego",8/26/2026,"GARCIA, HELEN",Email,<p>Weekly check-in</p>
+412002,"Baker, Priya",9/23/2026,"GARCIA, HELEN",Email,<p>Weekly check-in</p>
+412002,"Baker, Priya",9/16/2026,"GARCIA, HELEN",Phone,<p>Weekly check-in</p>
+412002,"Baker, Priya",9/9/2026,"GARCIA, HELEN",Teams,<p>Weekly check-in</p>
+412002,"Baker, Priya",9/2/2026,"GARCIA, HELEN",Phone,<p>Weekly check-in</p>
+412002,"Baker, Priya",8/26/2026,"GARCIA, HELEN",Teams,<p>Weekly check-in</p>
+412003,"Chen, Marcus",9/2/2026,"GARCIA, HELEN",Phone,<p>Called; no answer</p>
+412003,"Chen, Marcus",8/26/2026,"GARCIA, HELEN",Email,<p>Weekly check-in</p>
+412003,"Chen, Marcus",9/20/2026,"GARCIA, HELEN",Teacher Initiated,<p>Emailed student about pacing</p>
+412004,"Dawson, Kayla",9/22/2026,"STAHL, MARK",Zoom,<p>Weekly check-in</p>
+412004,"Dawson, Kayla",9/15/2026,"STAHL, MARK",Zoom,<p>Weekly check-in</p>
+412004,"Dawson, Kayla",9/8/2026,"STAHL, MARK",Zoom,<p>Weekly check-in</p>
+412004,"Dawson, Kayla",9/1/2026,"STAHL, MARK",Zoom,<p>Weekly check-in</p>
+412004,"Dawson, Kayla",8/25/2026,"STAHL, MARK",Zoom,<p>Weekly check-in</p>
+412005,"Espinoza, Luis",8/29/2026,"STAHL, MARK",Email,<p>Weekly check-in</p>
+412005,"Espinoza, Luis",9/19/2026,"STAHL, MARK",Parent,<p>Spoke with mom</p>
+412007,"Gutierrez, Sofia",9/23/2026,"KIM, LENA",Teams,<p>Weekly check-in</p>
+412007,"Gutierrez, Sofia",9/16/2026,"KIM, LENA",Phone,<p>Weekly check-in</p>
+412007,"Gutierrez, Sofia",9/9/2026,"KIM, LENA",Email,<p>Weekly check-in</p>
+412007,"Gutierrez, Sofia",9/2/2026,"KIM, LENA",Teams,<p>Weekly check-in</p>
+412007,"Gutierrez, Sofia",8/26/2026,"KIM, LENA",Teams,<p>Weekly check-in</p>
+412008,"Hale, Jordan",9/12/2026,"KIM, LENA",Email,<p>Weekly check-in</p>
+412008,"Hale, Jordan",9/5/2026,"KIM, LENA",Phone,<p>Weekly check-in</p>
+412008,"Hale, Jordan",8/29/2026,"KIM, LENA",Email,<p>Weekly check-in</p>
+412009,"Ibarra, Mateo",8/16/2026,"KIM, LENA",Email,<p>Weekly check-in</p>
+412010,"Johnson, Aaliyah",9/23/2026,"GARCIA, HELEN",Teams,<p>Weekly check-in</p>
+412010,"Johnson, Aaliyah",9/16/2026,"GARCIA, HELEN",Teams,<p>Weekly check-in</p>
+412010,"Johnson, Aaliyah",9/9/2026,"GARCIA, HELEN",Teams,<p>Weekly check-in</p>
+412010,"Johnson, Aaliyah",9/2/2026,"GARCIA, HELEN",Teams,<p>Weekly check-in</p>
+412010,"Johnson, Aaliyah",8/26/2026,"GARCIA, HELEN",Email,<p>Weekly check-in</p>
+412011,"Kowalski, Ben",9/23/2026,"STAHL, MARK",Phone,<p>Weekly check-in</p>
+412011,"Kowalski, Ben",9/16/2026,"STAHL, MARK",Teams,<p>Weekly check-in</p>
+412011,"Kowalski, Ben",9/9/2026,"STAHL, MARK",Teams,<p>Weekly check-in</p>
+412011,"Kowalski, Ben",9/2/2026,"STAHL, MARK",Phone,<p>Weekly check-in</p>
+412011,"Kowalski, Ben",8/26/2026,"STAHL, MARK",Phone,<p>Weekly check-in</p>
+412012,"Lopez, Isabella",9/23/2026,"KIM, LENA",Phone,<p>Weekly check-in</p>
+412012,"Lopez, Isabella",9/16/2026,"KIM, LENA",Phone,<p>Weekly check-in</p>
+412012,"Lopez, Isabella",9/9/2026,"KIM, LENA",Email,<p>Weekly check-in</p>
+412012,"Lopez, Isabella",9/2/2026,"KIM, LENA",Phone,<p>Weekly check-in</p>
+412012,"Lopez, Isabella",8/26/2026,"KIM, LENA",Teams,<p>Weekly check-in</p>

@@ -1,0 +1,13 @@
+Name,User Name,External ID,Email,Parent/Guardian,Parent/Guardian Email,Date of Birth,Grade,Home School,Last Login,Active Courses
+"Alvarez, Diego",dalvarez,MG GH 412001,dalvarez@students.example.org,Guardian Alvarez,parent.dalvarez@example.org,7/2/2010,11,Chiawana High School,9/23/2026,2
+"Baker, Priya",pbaker,MG GH 412002,pbaker@students.example.org,Guardian Baker,parent.pbaker@example.org,4/3/2011,10,Chiawana High School,9/23/2026,3
+"Chen, Marcus",mchen,TH GH 412003,mchen@students.example.org,Guardian Chen,parent.mchen@example.org,4/15/2010,11,Chiawana High School,9/23/2026,2
+"Dawson, Kayla",kdawson,TH STA 412004,kdawson@students.example.org,Guardian Dawson,parent.kdawson@example.org,3/4/2009,12,Chiawana High School,9/23/2026,2
+"Espinoza, Luis",lespinoza,JQ STA 412005,lespinoza@students.example.org,Guardian Espinoza,parent.lespinoza@example.org,6/20/2011,10,Pasco High School,9/23/2026,2
+"Foster, Emma",efoster,JQ STA 412006,efoster@students.example.org,Guardian Foster,parent.efoster@example.org,1/4/2012,9,Pasco High School,9/23/2026,2
+"Gutierrez, Sofia",sgutierrez,MG KL 412007,sgutierrez@students.example.org,Guardian Gutierrez,parent.sgutierrez@example.org,9/25/2008,12,Chiawana High School,9/23/2026,2
+"Hale, Jordan",jhale,AZ KL 412008,jhale@students.example.org,Guardian Hale,parent.jhale@example.org,1/19/2010,11,Pasco High School,9/23/2026,2
+"Ibarra, Mateo",mibarra,AZ KL 412009,mibarra@students.example.org,Guardian Ibarra,parent.mibarra@example.org,3/18/2011,10,Pasco High School,9/23/2026,1
+"Johnson, Aaliyah",ajohnson,TH GH 412010,ajohnson@students.example.org,Guardian Johnson,parent.ajohnson@example.org,2/12/2010,11,Chiawana High School,9/23/2026,2
+"Kowalski, Ben",bkowalski,JQ STA 412011,bkowalski@students.example.org,Guardian Kowalski,parent.bkowalski@example.org,10/1/2009,12,Pasco High School,9/23/2026,2
+"Lopez, Isabella",ilopez,MG KL 412012,ilopez@students.example.org,Guardian Lopez,parent.ilopez@example.org,2/28/2012,9,Chiawana High School,9/23/2026,2
