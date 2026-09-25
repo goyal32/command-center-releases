@@ -2,7 +2,9 @@
 
 **Status:** specification only (no code). Prepared 2026-09-25 from `research/COMMAND-CENTER-NEXT-GEN.md` and the
 QA audit of Command Center 0.2.46. **Revision A** (same day) applies the findings of
-`research/COMMAND-CENTER-BRAIN-V1-VALIDATION.md`; every changed passage is marked `[Rev A]` and listed in §11. Phase 1 scope: everything here runs on data the app already has (Edgenuity
+`research/COMMAND-CENTER-BRAIN-V1-VALIDATION.md`; every changed passage is marked `[Rev A]` and listed in §11.
+**Revision B** (same day) adds the rule-applicability and mixed-program layer from
+`research/COMMAND-CENTER-APPLICABILITY-MODEL.md`, marked `[Rev B]`. Phase 1 scope: everything here runs on data the app already has (Edgenuity
 export, ALE contact log and enrollment, Students report, district calendar, the app's own records). No Imagine or
 SIS integration is assumed.
 
@@ -22,6 +24,14 @@ determination that Washington's ALE rules assign to a certificated teacher.
    automatic text never uses the words *missed*, *unjustified*, *excluded*, *failing* or *unsatisfactory*. The engine
    says "no qualifying contact recorded"; only a teacher's recorded outcome turns that into "missed without
    justification". A stale or missing source produces a data task, never a student conclusion.
+7. `[Rev B]` Every rule declares the regimes it belongs to (§2.11). A regime-bound rule evaluates a subject only
+   when that subject resolves `required` for the regime; `unknown` produces an applicability finding (AP-01),
+   never a compliance finding and never silence; `not_required` produces nothing. "Rule exists" is not "rule
+   applies here".
+8. `[Rev B]` Applicability comes from explicit records (district and program configuration, the ALE enrollment
+   and course-enrollment reports, administrator overrides), never from a course-name prefix, a school name, a
+   teacher's name or the fact that the app runs in Washington. Heuristics may suggest a mapping to an
+   administrator; they never decide.
 
 ---
 
@@ -291,14 +301,17 @@ Rules are data plus a pure evaluation function. Registry entry:
 | `severity` | enum: legal_deadline, contact, progress, housekeeping, data | |
 | `cite` | text | WAC/RCW/district source shown in the UI |
 | `judgment_required` | bool | |
+| `regimes` | json | `[Rev B]` Regimes the rule belongs to (`core`, `wa_ale`, `credit_recovery`, …) |
+| `guard` | enum: student, enrollment, source, none | `[Rev B]` Which subject must resolve `required` for every listed regime before `evaluate()` runs (§2.11) |
 | `evaluate(ctx, subject) → Finding[]` | function | Pure; no I/O |
 | `task_for(finding) → TaskSpec` | function | |
 | `closes_when(ctx, finding) → bool` | function | Auto-resolution check |
 | `evidence_shown(ctx, finding) → Fact[]` | function | The facts the UI lists |
 
 `finding`: `{id, rule_id, rule_version, policy_version, calendar_version, sid, subject_key, first_seen_run,
-last_seen_run, facts_json, explain_json, confidence, confidence_json, tier, state: active|resolved|suppressed|
-resolved_by_policy, suppressed_by (exception id), resolved_by (fact or evidence ref)}`. A finding is idempotent on
+last_seen_run, facts_json, explain_json, confidence, confidence_json, tier, applicability_json `[Rev B]`, state:
+active|resolved|suppressed|resolved_by_policy|resolved_by_applicability, suppressed_by (exception id),
+resolved_by (fact or evidence ref)}`. A finding is idempotent on
 `(rule_id, sid, subject_key)`.
 
 `[Rev A]` **Subject keys per rule** (an *episode* is a new finding, never a reopen): WC-01/02/04 = week Sunday;
@@ -421,6 +434,41 @@ policy. `[Rev A]` Defaults and horizons:
 Findings about periods that end after a source's horizon are at most *Incomplete*; findings that need a stale or
 missing source are *Cannot Evaluate* and produce a DH task instead of a student task.
 
+### 2.11 Regime and applicability `[Rev B]`
+
+Full design: `research/COMMAND-CENTER-APPLICABILITY-MODEL.md`.
+
+`regime`: `{id, name, cite, scope_text, version, requires_contact_documentation, contact_record_system}`. Phase 1
+ships `core` (universal product rules) and `wa_ale` (Washington ALE) and an empty `credit_recovery` a district may
+populate. A regime's T0 definitions apply only to subjects inside its scope; the product assigns no program to any
+regime by itself.
+
+`applicability_statement` (append-only): `{id, regime_id, level: L2 district | L3 program | L4 student record |
+L5 enrollment record or course mapping | L6 override, subject_kind: program|school|student|enrollment|course_key,
+subject_key, state: required|not_required|unknown, authoritative (L2/L3 only), source, effective_from,
+effective_to, reason, set_by, set_at, version, superseded_by}`. Import-derived statements (ALE enrollment report =
+L4, ALE course-enrollment report = L5) are rebuilt per import with the import id as version.
+
+**Resolution** for `(regime, subject, date)`, most specific first: L6 override → L5 enrollment record / course
+mapping → L4 student record (enrollment-scoped subjects get `unknown` from L4 alone unless the program default is
+authoritative) → L3 program default → L2 district default if authoritative (advisory defaults yield `unknown` with
+a suggestion) → `unknown`. Two explicit statements that disagree → `unknown` with both listed (AP-02). An expired
+override → `unknown` (`override_expired`), never a silent fallthrough. Teacher role never decides applicability.
+
+**Student aggregate:** a student is `required` for a regime if any enrollment or the L4 record says so;
+`not_required` if all say so; else `unknown`. `R-scope enrollments` are those resolved `required`; `not_required`
+ones are shown as "other enrollments (not in the plan)" and never enter the regime's packets or proposals.
+
+`applicability_json` (stored on every finding, step, packet and external-action event): `{regime, subject, date,
+state, decided_at, statements: [{id, level, state, source, version}], conflicts, hints (not used), explanation}`.
+
+**Applicability findings** (regime `core`): AP-01 *unknown* (one per subject per cause from the closed list
+`no_program_assignment`, `program_default_advisory_only`, `no_ale_enrollment_record`,
+`course_membership_unconfirmed`, `conflicting_statements`, `override_expired`, `regime_unassigned`), AP-02
+*conflict*, AP-03 *regime unassigned* (system). Each creates a configuration task for the oversight role (or a
+DH-01 task when the cause is a stale source); the teacher sees the student under "Needs configuration" with the
+universal findings and a *Request mapping* action. Unknown is reported as its own count everywhere.
+
 ---
 
 ## 3. Policy settings (district-configurable, shown in every explanation)
@@ -464,6 +512,12 @@ missing source are *Cannot Evaluate* and produce a DH task instead of a student 
 | `mpr.communicate_within_school_days` `[Rev A]` | 3 | MP-02 (D-8) |
 | `mpr.no_progress_avg`, `mpr.min_month_gain` `[Rev A]` | 10, 2 | MP-P1 |
 | `program.graduation_date`, `program.advisor_source` `[Rev A]` | (T2), ale | PR-06, RS-03 |
+| `regimes.programs` `[Rev B]` | `{iPAL: {wa_ale: required, authoritative: true}}` (T2 example) | applicability L2/L3 |
+| `regimes.course_mapping` `[Rev B]` | `{}` (course_key → regime, set_by, version) | applicability L5 |
+| `external_systems.contact_record_system` `[Rev B]` | `{id: ale, name, student_url_template, queue_provider: ale_queue, verify_via: ale_sync}` (T2) | External Action Policy |
+| `external.policy` `[Rev B]` | rows `(regime, context, applicability) → [{action, mode}]`, see APPLICABILITY-MODEL §6 | e-mail, contact_log, phone note, family notification |
+| `external.mixed_course_email` `[Rev B]` | offer | course-level e-mail on a non-plan course of an ALE student |
+| `external.record_system_reopen_minutes` `[Rev B]` | 30 | focus instead of reopen |
 
 Every change to policy writes a `policy.changed` event and triggers a full re-evaluation.
 
@@ -471,7 +525,8 @@ Every change to policy writes a `policy.changed` event and triggers a full re-ev
 
 | Tier | Owner | Examples | Editable by | Locked? |
 | --- | --- | --- | --- | --- |
-| T0 Washington/state | the product, from WAC/RCW text with citation and effective date | school week = Sun–Sat with ≥ 3 school days; weekly contact; monthly evaluation with direct personal contact; K-8 parent participation; 20 consecutive school days; three consecutive months → course-of-study decision; evidence fields date/method/subject; count-day rule | nobody | yes; shown with the citation; changes need a product release |
+| T0 regime definitions `[Rev B]` | the product, from WAC/RCW text with citation and effective date, **per regime** | for `wa_ale`: school week = Sun–Sat with ≥ 3 school days; weekly contact; monthly evaluation with direct personal contact; K-8 parent participation; 20 consecutive school days; three consecutive months → course-of-study decision; evidence fields date/method/subject; count-day rule | nobody | yes; shown with the citation; changes need a product release. **They apply only to subjects that resolve `required` for the regime (§2.11); T0 carries no default applicability, so running the app in Washington assigns nothing to ALE.** |
+| T0 regime scope `[Rev B]` | the product | the regime's scope text with citation, used to tell administrators what evidence places a subject inside it | nobody | informational; the district assigns programs to regimes in T1 (until it does, AP-03 shows one configuration task) |
 | T1 District | district ALE administrator | qualifying types; attendance-course counting; justification codes; plan due days and day-0; consecutive-month pause; MPR window and unsatisfactory rule; who confirms; whether the district form satisfies "communicated"; passing grade; 15/20-day thresholds; calendar; retention | oversight role, reason required, event, re-scan | teachers cannot override; a program may tighten, never loosen |
 | T2 Program (e.g. iPAL) | program lead | External-ID token layout; attendance-course patterns; course prefix; school/counselor codes; e-mail templates and policy text; Contact Watch ladder; graduation date; district-form mapping; CSV header mappings; sources imported; advisor source | oversight role | overrides product defaults, never T1 |
 | T3 Teacher preference | each staff member | at-risk weekday for own reminders (earlier than T1 only); queue grouping and filters; signature; snooze default ≤ cap; Downloads watcher | the user | never affects findings, confidence or reports |
@@ -489,6 +544,13 @@ Common attributes: **Trigger** lists events; every rule also runs on `daily` (fi
 `calendar_change`/`policy_change`; `[Rev A]` a `task_event` re-runs only `closes_when` for the affected student.
 **Required data** names sources that must not be `stale`/`missing`; otherwise the
 rule emits `DH-gap` instead of a student finding, and every finding carries the confidence level of §2.7.
+`[Rev B]` **Applicability gate**: before `evaluate()`, the engine resolves every regime in the rule's `regimes`
+for the rule's `guard` subject; `required` → evaluate; `unknown` → AP-01 once per subject (not per rule);
+`not_required` → nothing. Classification of each rule (universal / ALE-enrollment / course / program /
+configurable) and the guard column are in `COMMAND-CENTER-APPLICABILITY-MODEL.md` §7. In short: WC-*, MP-*,
+IP-*, RS-04 and DH-04 are `wa_ale` student-guarded; PR-* and RS-01..03, DH-01/03/05/06 are `core`; DH-01 requires
+the ALE sources only while at least one student resolves `required` or `unknown` for `wa_ale`; WAC citations
+print only on findings whose subject is in the regime.
 `[Rev A]` **Required week**: a school week (≥ 3 school days) is *required* for a student only if the plan was
 active on at least `contact.min_enrolled_school_days_in_week` of its school days (enrollment episode, §2.1); weeks
 with fewer than three school days are neither met nor missed, and whether they interrupt a streak is
@@ -903,6 +965,11 @@ or an app-written contact is never seen in ALE (`verification_state → unverifi
 student page with *accept (reopen the finding)* / *keep (the evidence stands, with a note)*. The finding is never
 reopened silently.
 
+**AP-01 Applicability unknown / AP-02 Applicability conflict / AP-03 Regime unassigned** `[Rev B]` — see §2.11.
+Severity data; never legal; one configuration task per cause for the oversight role; the student stays visible
+with universal findings and a *Request mapping* action; heuristic hints (course prefix, teacher list, school) are
+attached as suggestions marked "not used".
+
 ### 4.7 Rule summary table
 
 | Rule | Severity | Judgment | Auto-resolves on data |
@@ -931,6 +998,7 @@ reopened silently.
 | IP-05 family notified | contact | no | no |
 | RS-01..04 roster/plan | housekeeping/data | partial | partial |
 | DH-01..06 data health | data | no (DH-06: accept) | yes |
+| AP-01..03 applicability `[Rev B]` | data | no (administrator configures) | yes |
 
 ---
 
@@ -999,20 +1067,42 @@ touch existing, resolve vanished with the reason) → create/update tasks → co
 The queue (wireframe §8.2). Groups: *Fix data first* (DH), *Legal deadlines*, *Contact*, *Progress*,
 *Housekeeping*, then *Waiting* (snoozed) and *Done today*. Each card: student, the top task title, the "why" line,
 due date with derivation on hover, primary action button, secondary actions in a menu. Filters follow the
-dashboard's who-filters (school/counselor/advisor/teacher). The Today card and Reminder Center become views of
-the same tasks.
+dashboard's who-filters (school/counselor/advisor/teacher) `[Rev B]` plus a *Regime* facet; the scope bar shows
+"n ALE · n CR · n unconfirmed"; each card header carries a regime badge and the enrollment breakdown ("2 ALE · 1
+CR"); a collapsed *Needs configuration* group lists `unknown` students with their universal findings; a CR-only
+caseload shows no legal or contact groups and no weekly-contact language. The Today card and Reminder Center
+become views of the same steps.
 
 ### 7.5 Student Evidence
 Opening a card shows the student page: header (status, advisor, plan dates, contact method), the open tasks,
 and the evidence timeline (contacts by week, snapshots, evaluations, plans, notes, exceptions, e-mails), plus the
 monthly packet when an evaluation is open. Every fact carries its source and timestamp. The MPR packet section
 lists: courses (progress/target/gap/grade/last activity/target date/projected finish), trend since last month,
-contacts by week with qualifying marks, attendance-course weeks, previous evaluation and plan, missing items.
+contacts by week with qualifying marks, attendance-course weeks, previous evaluation and plan, missing items;
+`[Rev B]` only `R-scope` enrollments enter the proposals, and enrollments resolved `not_required` are listed under
+"other enrollments (not in the ALE plan)". A CR-only student has no packet; a mixed teacher's packet list shows
+them under a collapsed "not evaluated (no ALE plan)" heading with the count.
 
 ### 7.6 Action
-Actions run the existing mechanisms: contact_log opens the ALE queue pre-filled (type, date, note) and returns
-the ALE contact id; draft_email opens the preview modal (the Email Advisory flow) with a grounded draft and
-records recipients, subject, body hash and time; write_plan opens the plan editor pre-filled from the packet;
+`[Rev B]` **External Action Policy.** Actions that touch outside systems are abstract ids
+(`communication.compose_email`, `communication.open_outlook`, `contact.record_local`, `contact.queue_evidence`,
+`contact.open_record_system`) resolved through T2 provider descriptors; ALE is named in exactly one place, the
+`contact_record_system` descriptor. The policy table `(regime, context, applicability) → [{action, mode:
+auto|offer|never|fallback}]` decides what follows a communication. The roster ✉ button (and the AI and
+smart-template e-mail paths, which today compose, open the mail client and open the ALE student page 250 ms later
+for every student) becomes a composite: compose with a context (`student` or `course`) → open the mail client →
+record the e-mail locally (always) → documentation post-action per policy: ALE-tracked student → `queue_evidence:
+auto` (the existing ALE queue dialog, pre-filled; the ALE page opens only as a fallback when the queue provider is
+unavailable); not ALE → nothing beyond the local record, with the reason shown; course-level e-mail about a
+non-plan course of an ALE student → `offer` (one-click chip); unknown applicability → `offer` with a warning chip
+and the configuration task, never silent. A record-system window opened for the same student within
+`external.record_system_reopen_minutes` is focused, not reopened. Every decision writes `external_action.decided`
+with the policy row, the applicability resolution and the outcome, and the student timeline prints "ALE opened
+because… / ALE not opened because…". Full behaviour table: `COMMAND-CENTER-APPLICABILITY-MODEL.md` §5–§6.
+
+Actions run the existing mechanisms: contact_log runs `contact.queue_evidence` (today: the ALE queue pre-filled
+with type, date, note; returns the ALE contact id after verification); draft_email opens the preview modal (the
+Email Advisory flow) with a grounded draft and records recipients, subject, body hash and time; write_plan opens the plan editor pre-filled from the packet;
 record_exception asks for a typed reason and window; open_mpr_packet shows proposals with **Confirm** per row;
 `[Rev A]` there is no "confirm all": a row becomes selectable for **Confirm selected (n)** only after its facts were
 expanded in this session and only when every line is *Reliable*; each confirmation is its own event. The
@@ -1028,7 +1118,12 @@ transition is an event.
 
 ### 7.8 Audit History
 Per student: the timeline with a "what changed since" selector and an **Audit Ready** button that generates the
-packet (PDF + manifest + CSV slices, hashes) for a date range. Per caseload: the exception report (per advisor:
+packet (PDF + manifest + CSV slices, hashes) for a date range. `[Rev B]` Packet sections are regime-driven: an ALE
+student gets the compliance sections; a CR-only student gets enrollment history, communications, progress
+snapshots and change log under the header "no ALE requirements applied ({program}, district v{n})"; a mixed student
+gets both with the enrollment breakdown; every packet prints the applicability resolution used and the AP findings
+open in the period. The exceptions report computes ALE columns over ALE-tracked students only and adds *CR students*
+and *unknown applicability* columns. Per caseload: the exception report (per advisor:
 open/overdue by severity, evidence-gap rate, students at 15–19 / 20+ school days, evaluations unrecorded, plans
 overdue). Program: chain verification status, scan history, policy and calendar change log.
 
@@ -1077,7 +1172,8 @@ Blocked example:
 
 ```
 ┌─ Today's Work · Advisor GH · Fri Sep 25 (week of 9/20, 4 school days left in Sept window) ────┐
-│ Scope: [All schools ▾] [All counselors ▾] [Advisor GH ▾] [All teachers ▾]   Last scan 8:03 ↻   │
+│ Scope: [All schools ▾] [All counselors ▾] [Advisor GH ▾] [All teachers ▾] [Regime: all ▾]  ↻ 8:03 │
+│ 4 ALE · 0 CR · 0 unconfirmed                                                            [Rev B]   │
 │ 1 data · 2 legal deadlines · 3 contact · 2 progress · 1 housekeeping · 1 waiting · 3 done today │
 ├─ FIX DATA FIRST ─────────────────────────────────────────────────────────────────────────────┤
 │ ▲ Contact log for week of 9/13 was not pulled — weekly-contact checks for that week are          │
@@ -1266,6 +1362,12 @@ Blocked example:
 12. `[Rev A]` Whether expired courses count in the progress proposal (default: yes, flagged).
 13. `[Rev A]` Whether a contact without a subject qualifies for the weekly requirement (default: yes, with an
     evidence-gap step).
+14. `[Rev B]` Which programs are Washington ALE programs, with authoritative defaults, and whether an ALE-plan
+    student's untagged Edgenuity courses are plan courses by default.
+15. `[Rev B]` Whether the district's credit-recovery practice gets its own regime rules (for example a no-activity
+    outreach ladder) and whether Contact Watch binds to it.
+16. `[Rev B]` The External Action Policy rows for the district's record system, in particular the mode for
+    course-level e-mails on non-plan courses (default `offer`).
 
 ## 11. Revision A changelog `[Rev A]`
 
@@ -1280,3 +1382,15 @@ confirm; RS-03 mismatch rule and RS-02 outcomes; PR-01 scope and null anchor; PR
 minimum-drop conditions; PR-04 per enrollment; PR-06 optional senior projection; required-week rule, non-school
 weeks, re-enrollment episodes; DH-06 evidence-disappeared anomaly; risk score removed; snooze cap at legal due
 dates; reopen without time limit; `explain_json` schema; corrected golden expectations; district decisions 8–13.
+
+## 12. Revision B changelog `[Rev B]`
+
+Applied 2026-09-25 from `research/COMMAND-CENTER-APPLICABILITY-MODEL.md` (documentation only, no code): guiding
+rules 7–8 (rule exists ≠ rule applies; explicit records only); §2.11 regime and applicability model with levels
+L2–L6, resolution order, conflict and expired-override handling, student aggregate and `applicability_json`;
+registry fields `regimes` and `guard`; finding state `resolved_by_applicability`; T0 split into per-regime
+definitions and scope with no default applicability; policy keys for program assignment, course mapping, external
+systems and the External Action Policy; the applicability gate in §4; AP-01..03; Today's Work regime facet, badges
+and "Needs configuration" group; MPR packet `R-scope` enrollments; Audit Ready and exceptions report per regime;
+the roster e-mail composite action with `auto / offer / never` documentation post-actions and decision events;
+district decisions 14–16.

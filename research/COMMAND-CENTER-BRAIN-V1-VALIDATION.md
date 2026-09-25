@@ -101,7 +101,8 @@ has no contact this week and the exception report counts him. *Fix (applied):* t
 §5 of this document (Reliable / Warning / Incomplete / Cannot Evaluate) with a **coverage horizon** per source and a
 `verification_state` on contacts. Findings carry confidence; wording is fixed per level.
 
-**C-9. Pasco-specific configuration is presented as product defaults.** The policy table is headed "Default
+**C-9. Pasco-specific configuration is presented as product defaults.** *(Revision B goes further: the Washington
+ALE requirements themselves are now a regime with explicit applicability, see §12.)* The policy table is headed "Default
 (Pasco)"; External-ID token positions, Laserfiche, the Contact Watch ladder, the attendance-course pattern, counselor
 codes and e-mail policy text appear inside rule definitions. A second district would inherit Pasco's compliance
 posture silently. *Fix (applied as §3.1 in the spec, designed in §7 here):* four configuration tiers with
@@ -917,3 +918,41 @@ Residual risks after Revision A:
 - The confidence model depends on knowing a pull's horizon; the ALE CSV export has no timestamp inside the file, so
   the import time is used. A teacher importing a week-old CSV on Friday would get "fresh". Mitigation: ask for the
   export date on manual CSV import when the file's modification time is older than one day, and record it.
+
+---
+
+## 12. Applicability and mixed programs (added with Revision B)
+
+Source: `research/COMMAND-CENTER-APPLICABILITY-MODEL.md`. The critical gap it closes: Revision A evaluated every
+ALE rule for every active student. A teacher with credit-recovery enrollments, or a student with an ALE plan and a
+non-ALE course, would have received weekly-contact, evaluation and intervention deadlines with WAC citations for
+work the law does not require of them, and the exceptions report would have counted them as non-compliant.
+Conversely, the only signals the app has for "credit recovery" (a course-name prefix and a teacher list) are
+heuristics that must never decide legal scope.
+
+**Additional critical problem**
+
+**C-17. Rule existence was treated as rule applicability.** No rule declared who it applies to, and T0 read as
+"applies in Washington". *Scenario:* advisor STA's caseload gains Okafor (program CR-Lab, no ALE plan). On Monday
+WC-02 says "Reach Okafor this week", on Friday WC-01 opens an acknowledgment, the e-mail button opens ALE for a
+student ALE has never heard of, and the September packet list wants an evaluation. *Fix (applied):* regimes, the
+applicability gate, `unknown` as a first-class state with configuration tasks, and the External Action Policy.
+
+**Acceptance cases** (setup and expectations in the model document §10; ids for the test suite):
+
+| Case | Expectation |
+| --- | --- |
+| AP-ALE-only (Chen) | Revision A golden run unchanged; `applicability_json.decided_at = L5` on every finding. |
+| AP-CR-only (Okafor 412015) | Zero `wa_ale` findings on every as-of date of the year; PR-01 maps to progress outreach, not to a contact step; e-mail: Outlook only, decision event `outcome = skipped`, `state = not_required`; not in ALE report columns; DH-01 for ALE sources suppressed when the caseload has no ALE or unknown students. |
+| AP-mixed-student (Petrov 412016) | Student-scoped `wa_ale` rules run; PR-01 for Financial Literacy is `core`; packet proposals use two courses; Financial Literacy listed as "other enrollment"; course-level e-mail on it → `offer`; on Algebra 2 A → `auto`; student-level → `auto`; second click within 30 minutes never opens a second ALE window. |
+| AP-mixed-teacher (STA) | Scope bar counts 4 ALE · 1 CR · 0 unconfirmed; groups as described; exceptions row denominators 4 / 1 / 0. |
+| AP-unknown (Quinn 412017) | Exactly one AP-01 per cause (`no_ale_enrollment_record`, `program_default_advisory_only`); no legal or contact step; configuration task lists Quinn; e-mail → Outlook + `offer` + warning, never `skipped`; counted as unknown. |
+| AP-override (Reyes 412018) | `not_required` through 10/4 with reason printed; 10/5 → `unknown` (`override_expired`) + task; after clearing, required weeks start 10/5 and override weeks read "not required (override)". |
+| AP-conflict (Okafor later gains an ALE record) | AP-02; state unknown; no `wa_ale` findings until resolved. |
+| AP-regime-unassigned (fresh district with no T1 programs) | Every student unknown for `wa_ale`; one AP-03 task; no student compliance findings; e-mail → `offer` + warning. |
+| AP-heuristics-ignored | With course prefix `CR 26-27` and a teacher in the legacy `cr_teachers` list but an explicit L5 statement `required`, the enrollment resolves `required` and the hints appear as "not used". |
+| AP-property | For all subjects with an explicit `not_required` at L5/L6, the `wa_ale` finding set is empty for every calendar day (property test). For all `unknown`, no legal-deadline finding and no contact step exist. |
+
+**Dependency-graph change:** the applicability resolver sits in L1 (shared primitives) next to the configuration
+layer, and the External Action Policy sits in L9 with Today's Work; no rule (L5) may be built before the gate exists,
+and the e-mail entry points are migrated onto the policy before the legacy direct-mailto path is retired (L13).
