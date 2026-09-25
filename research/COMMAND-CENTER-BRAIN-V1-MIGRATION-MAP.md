@@ -108,11 +108,12 @@ shims that call it, verified by shadow comparison before removal.
 | **CSV parsing** | `parseCsv`/`parseCSV` in six modules plus `aleSync.parseCsv` | Low but wasteful; one parser with the header-alias table. |
 | **SID from External ID / name cleaning** | core, snapshots `extractSid`, roster `nameToSid`, queue `sidByName`, MPR `sidOf`, Contact Watch `sidOf`, attendance `sidOf` | Medium: name-only matching in three modules. |
 
-**Parity item for the spec.** The shipped `MPR.evaluate` grades the summary in four levels and treats "expired ≥ 1"
-and "failing ≥ 2" as Unsatisfactory; the spec's MP-P1 (Revision A) has three levels. Before shadow mode, MP-P1 must be
-restated with the four levels and the same inputs (avg progress, max gap, failing count, expired count) so that the
-comparison is like-for-like; policy keys `mpr.adequate_gap`, `mpr.unsatisfactory_gap`, `mpr.no_progress_avg`,
-`mpr.comm_met_days` map one-to-one onto today's `ipal_mpr_settings_v1`.
+**Parity item for the spec (resolved in spec Revision C).** The shipped `MPR.evaluate` grades the summary in four
+tiers and the communication status in four tiers; the exact strings, their origin (the district's Laserfiche form
+option text), every consumer, the lossy `Unsatisfactory → 'unsatisfactory'` ledger mapping and what reaches
+Laserfiche versus ALE are traced in `COMMAND-CENTER-MPR-VOCABULARY-TRACE.md`. Two extra retirements follow from
+the trace: the core `generateMPRComment` (a second evaluator that uses days-since-contact) goes behind `brain.mpr`,
+and the snapshot-compare card titled "No Progress" is renamed to avoid the collision.
 
 ---
 

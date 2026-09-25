@@ -178,9 +178,10 @@ Exceptions are evidence of kind `exception` with a typed reason (`arranged_absen
 | `sid`, `month` (YYYY-MM) | PK | |
 | `packet_json` | json | The evidence packet (§7.5) as computed; refreshed when data changes until confirmed |
 | `packet_hash`, `packet_at` | text, ts | |
-| `proposed_summary` | enum: on_target, adequate_needs_improvement, unsatisfactory, no_progress | From rules (today's MPR module logic) |
-| `proposed_comm` | enum: met, needs_improvement, unsatisfactory, no_communication | From rules |
-| `proposed_status` | enum: satisfactory, unsatisfactory | From policy rule (both / either / progress) |
+| `proposed_summary` | enum: on_target, adequate_needs_improvement, unsatisfactory, no_progress | `[Rev C]` From MP-P1; rendered with the form vocabulary `On Target` / `Adequate, but Needs Improvement` / `Unsatisfactory` / `No Progress` |
+| `proposed_comm` | enum: met, needs_improvement, unsatisfactory, no_communication | `[Rev C]` From MP-P2; rendered `Weekly Requirements Met` / `Needs Improvement` / `Unsatisfactory` / `No Communication` |
+| `proposed_status` | enum: satisfactory, unsatisfactory | From MP-P3 (both / either / progress); rendered `Satisfactory` / `Unsatisfactory` |
+| `submitted_summary`, `submitted_comm`, `submitted_status`, `submitted_method`, `submitted_intervention` | text/bool, nullable | `[Rev C]` What the district form reported back at submit (option text read by the form watcher); kept separately from confirmed values; a difference is shown as a fact; a blank status is stored as `not_stated`, never defaulted to Satisfactory |
 | `confirmed_summary`, `confirmed_comm`, `confirmed_status` | enum, nullable | Entered by the teacher (judgment) |
 | `confirmed_by`, `confirmed_at` | text, ts | Must be set before the form can open |
 | `dpc_contact_id` | id, nullable | The direct personal contact linked to this evaluation (WAC: evaluation must include DPC) |
@@ -510,7 +511,9 @@ universal findings and a *Request mapping* action. Unknown is reported as its ow
 | `mpr.min_judged_weeks_required` `[Rev A]` | 1 | MP-01 partial months (D-9) |
 | `mpr.include_expired_courses` `[Rev A]` | true (flagged) | MP-P1 (D-12) |
 | `mpr.communicate_within_school_days` `[Rev A]` | 3 | MP-02 (D-8) |
-| `mpr.no_progress_avg`, `mpr.min_month_gain` `[Rev A]` | 10, 2 | MP-P1 |
+| `mpr.no_progress_avg`, `mpr.unsatisfactory_gap`, `mpr.adequate_gap` `[Rev C]` | 10, 10, 5 | MP-P1 (= shipped `noProgressAvg`, `unsatisfactoryGap`, `adequateGap`) |
+| `mpr.unsatisfactory_summaries`, `mpr.unsatisfactory_comms` `[Rev C]` | [Unsatisfactory, No Progress], [Unsatisfactory, No Communication] | MP-P3 |
+| `mpr.form_vocabulary` `[Rev C]` | T2: `{summary: [On Target, Adequate, but Needs Improvement, Unsatisfactory, No Progress], comm: [Weekly Requirements Met, Needs Improvement, Unsatisfactory, No Communication], status: [Satisfactory, Unsatisfactory], form_fields: {status: Field9, summary: Field18, comm: Field19, month: Field24, method: Field28, intervention: Field10-0, intervention_date: Field12}}` | packet, form fill, read-back |
 | `program.graduation_date`, `program.advisor_source` `[Rev A]` | (T2), ale | PR-06, RS-03 |
 | `regimes.programs` `[Rev B]` | `{iPAL: {wa_ale: required, authoritative: true}}` (T2 example) | applicability L2/L3 |
 | `regimes.course_mapping` `[Rev B]` | `{}` (course_key → regime, set_by, version) | applicability L5 |
@@ -763,23 +766,33 @@ of record; oversight roles may reassign). Priorities are severity classes; the n
 report counts, and are always labelled "proposed". *Judged weeks* for month M = the student's required weeks whose
 Saturday falls in M and that are complete as of the scan (printed by date). Each proposal lists the facts it used.
 
-- `[Rev B note]` *Parity with the shipped MPR module:* 0.2.46's `MPR.evaluate` grades the summary in four levels
-  (On Target / Adequate but Needs Improvement / Unsatisfactory / No Progress) using average progress, the largest
-  pacing gap, the count of courses below passing and the count of expired courses, with thresholds from the MPR
-  settings. MP-P1 must be restated with those four levels and inputs before shadow comparison
-  (`COMMAND-CENTER-BRAIN-V1-MIGRATION-MAP.md` §2); the three-level text below is superseded by that restatement.
-- **MP-P1 Progress summary** over active courses (expired courses included with a flag when
-  `mpr.include_expired_courses`): *On Target* if every course is `on_pace`; *No Progress* if the average progress
-  is below `mpr.no_progress_avg` and every course is below `on_pace`, or (when a prior-month snapshot exists) no
-  course gained ≥ `mpr.min_month_gain` points since the last evaluation; otherwise *Adequate / Needs Improvement*.
-  A student with no judged weeks or no prior snapshot gets "not proposed — {reason}".
-- **MP-P2 Communication** over judged weeks: *Met* when every judged week has a qualifying contact; *Needs
-  Improvement* when exactly one lacks one; *Unsatisfactory* when two or more lack one; *No Communication* when none
-  has one. Unreviewed, acknowledged and justified weeks are listed; justified weeks are excluded from the
-  denominator.
-- **MP-P3 Overall** per `mpr.unsatisfactory_rule`: `both` = Unsatisfactory only when P1 is No Progress **and** P2 is
-  Unsatisfactory or No Communication; `either` = when either is; `progress` = P1 alone. The packet prints "would
-  change if …" for the nearest boundary.
+- `[Rev C]` **External vocabulary is preserved verbatim.** The three option sets below are the district form's
+  (`COMMAND-CENTER-MPR-VOCABULARY-TRACE.md`); Brain stores enums internally and renders them through the T2 form
+  mapping `mpr.form_vocabulary` (default: the exact strings shown), so a form-text change is a configuration edit,
+  not a code change. The word *Unsatisfactory* exists in all three fields with different meanings and the UI always
+  labels which field it belongs to.
+- **MP-P1 Progress summary** `[Rev C: restated to the shipped four tiers]` over `R-scope` active courses (expired
+  courses included with a flag when `mpr.include_expired_courses`). Inputs per course: progress, pacing, grade
+  (below `grade.passing`, counted only when known and, for a 0 grade, only once progress ≥ `grade.zero_grade_progress`),
+  expired. Aggregates: `avg` progress, `max_gap` = largest negative pacing, `failing` count, `expired` count,
+  `any_behind`. Tiers, evaluated in this order:
+  1. *No Progress* if (`avg` < `mpr.no_progress_avg` and (`any_behind` or `expired` ≥ 1)) or `expired` ≥ 2;
+  2. *Unsatisfactory* if `max_gap` ≥ `mpr.unsatisfactory_gap` or `failing` ≥ 2 or `expired` ≥ 1;
+  3. *Adequate, but Needs Improvement* if `max_gap` ≥ `mpr.adequate_gap` or `failing` ≥ 1;
+  4. otherwise *On Target*.
+  Defaults 10 / 10 / 5 match `ipal_mpr_settings_v1`. A student with no judged weeks gets "not proposed — {reason}".
+- **MP-P2 Communication** `[Rev C]` over judged weeks (completed required weeks of the month, plus the current week
+  when it already has a qualifying contact — the shipped `judged()` rule): *Weekly Requirements Met* when no judged
+  week lacks a qualifying contact; *Needs Improvement* when exactly one lacks one; *No Communication* when none has
+  one; *Unsatisfactory* otherwise (two or more missed with at least one met). Justified weeks leave the denominator.
+  When the month has no contact-log coverage at all the proposal is "not proposed — contact evidence unavailable"
+  (the shipped days-since-last-contact fallback is **not** carried forward: it is the audit's M1 class of
+  disagreement and it produces a proposal from stale data).
+- **MP-P3 Overall** per `mpr.unsatisfactory_rule`: with `mpr.unsatisfactory_summaries` (default `Unsatisfactory`,
+  `No Progress`) and `mpr.unsatisfactory_comms` (default `Unsatisfactory`, `No Communication`) — `both` = Unsatisfactory
+  only when P1 ∈ summaries **and** P2 ∈ comms; `either` = when either is; `progress` = P1 alone. Otherwise
+  Satisfactory. The packet prints "would change if …" for the nearest boundary. `[Rev C]` These lists and thresholds
+  map one-to-one onto the shipped module's settings.
 
 **MP-01 Monthly evaluation due / missing**
 - Trigger: `daily`; `import:ale_log`; MPR window opens (last `mpr.window_working_days` working days).
@@ -1268,7 +1281,7 @@ Blocked example:
 ```
 ┌─ September 2026 evaluations · Advisor GH · window 9/24–9/30 · 4 working days left ──────────┐
 │ Student            Proposed summary        Proposed comm.     Direct contact   Trend    Status     │
-│ Alvarez, Diego     On Target [F1..F4]      Met (3/3)          Teams 9/23 ✔     ▲ +4.2   [Confirm]  │
+│ Alvarez, Diego     On Target [F1..F4]      Weekly Req. Met 3/3 Teams 9/23 ✔    ▲ +4.2   [Confirm]  │
 │ Baker, Priya       Adequate/Needs Impr.    Met (3/3)          Phone 9/24 ✔     ▼ −1.1   [Confirm]  │
 │ Chen, Marcus       No Progress             Unsatisfactory     Phone 9/2 ✔      ▼ −6.0   [Review ▸] │
 │ Johnson, Aaliyah   Adequate/Needs Impr.    Met (3/3)          Email 9/23 ✔     ▼ −6.0   [Confirm]  │
@@ -1277,8 +1290,10 @@ Blocked example:
 │ Proposed: Unsatisfactory (rule: both progress and communication unsatisfactory; policy = both).    │
 │ Would change if: one more qualifying contact this week → Needs Improvement (still Unsatisfactory   │
 │ overall under "both"? no → Satisfactory).                                                          │
-│ Progress summary  ( ) On Target ( ) Adequate (•) No Progress   ← your determination               │
-│ Communication     ( ) Met ( ) Needs improvement (•) Unsatisfactory                                 │
+│ Progress Summary  ( ) On Target ( ) Adequate, but Needs Improvement ( ) Unsatisfactory (•) No Progress │
+│ Communication Requirement Status  ( ) Weekly Requirements Met ( ) Needs Improvement                │
+│                   (•) Unsatisfactory ( ) No Communication        ← your determination  [Rev C]      │
+│ Progress Status   ( ) Satisfactory (•) Unsatisfactory (rule: both)                                  │
 │ Narrative draft (cites [F#]; edit freely):                                                          │
 │ "Monthly Progress Review for September with Marcus, by phone on 9/2 [F7]. Challenges: Algebra 2 A  │
 │  35.4 % behind [F2] …"                                                                              │
@@ -1399,3 +1414,14 @@ systems and the External Action Policy; the applicability gate in §4; AP-01..03
 and "Needs configuration" group; MPR packet `R-scope` enrollments; Audit Ready and exceptions report per regime;
 the roster e-mail composite action with `auto / offer / never` documentation post-actions and decision events;
 district decisions 14–16.
+
+## 13. Revision C changelog `[Rev C]`
+
+Applied 2026-09-25 from `research/COMMAND-CENTER-MPR-VOCABULARY-TRACE.md` (documentation only): the district
+form's three option sets are preserved verbatim through a T2 `mpr.form_vocabulary` mapping; MP-P1 restated to the
+shipped four-tier summary with the shipped thresholds and inputs; MP-P2 restated to the shipped four-tier
+communication set with the `judged()` rule and without the days-since fallback; MP-P3 uses the configurable
+"bad tier" lists; `evaluation` gains `submitted_*` read-back fields and a `not_stated` status instead of a
+Satisfactory default; policy keys aligned one-to-one with `ipal_mpr_settings_v1`; packet wireframe labels
+corrected; the core `generateMPRComment` duplicate and the snapshot-compare "No Progress" card noted for
+retirement/renaming in the migration map.
